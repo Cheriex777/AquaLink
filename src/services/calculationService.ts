@@ -297,6 +297,274 @@ export function calculatePaybackPeriodYears(
 }
 
 /* ------------------------------------------------------------------ */
+/* Engineering sizing (advisory layer — does not change cost engine)  */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Standard Indian market tank sizes in litres.
+ * Used to pick the smallest catalogue size that meets the calculated need.
+ */
+export const STANDARD_TANK_SIZES_L: readonly number[] = [
+  500, 1000, 2000, 3000, 5000, 10000, 15000, 20000, 25000,
+]
+
+/** Default storage autonomy target for engineering sizing advice. */
+export const ENGINEERING_TARGET_STORAGE_DAYS = 12
+
+/**
+ * Assumed saturated hydraulic conductivity (Ksat) for non-clay soils.
+ * 25 mm/hr is representative of sandy loam / loam — used only when no
+ * site-measured value is available. Clearly labelled as assumed in output.
+ */
+export const ASSUMED_INFILTRATION_RATE_MM_HR = 25
+
+/** Typical Indian monsoon rainy-day count used in recharge sizing. */
+export const ASSUMED_RAINY_DAYS_PER_YEAR = 60
+
+export interface EngineerTankResult {
+  dailyDemandLitres: number
+  targetDays: number
+  calculatedLitres: number
+  /** Smallest standard catalogue size ≥ calculatedLitres. */
+  recommendedLitres: number
+  tankType: 'PVC/HDPE overhead' | 'HDPE ground-level' | 'Underground RCC'
+  sizingNote: string
+}
+
+/**
+ * Picks the smallest standard tank size that covers dailyDemand × targetDays.
+ * Tank type is inferred from volume; overhead tanks suit small systems while
+ * large volumes need ground-level or underground RCC construction.
+ */
+export function engineerTankCapacity(
+  dailyDemandLitres: number,
+  targetDays: number = ENGINEERING_TARGET_STORAGE_DAYS,
+): EngineerTankResult {
+  assertNonNegative('dailyDemandLitres', dailyDemandLitres)
+  assertPositive('targetDays', targetDays)
+
+  const calculatedLitres = dailyDemandLitres * targetDays
+  const recommendedLitres =
+    STANDARD_TANK_SIZES_L.find((size) => size >= calculatedLitres) ??
+    STANDARD_TANK_SIZES_L[STANDARD_TANK_SIZES_L.length - 1]
+
+  const tankType: EngineerTankResult['tankType'] =
+    recommendedLitres <= 5000
+      ? 'PVC/HDPE overhead'
+      : recommendedLitres <= 15000
+        ? 'HDPE ground-level'
+        : 'Underground RCC'
+
+  const actualDays =
+    dailyDemandLitres > 0
+      ? Math.round((recommendedLitres / dailyDemandLitres) * 10) / 10
+      : targetDays
+
+  const sizingNote =
+    `Recommended storage: ${recommendedLitres.toLocaleString('en-IN')} L` +
+    ` (approximately ${actualDays} days of household demand).`
+
+  return {
+    dailyDemandLitres,
+    targetDays,
+    calculatedLitres: Math.round(calculatedLitres),
+    recommendedLitres,
+    tankType,
+    sizingNote,
+  }
+}
+
+export interface RechargeStructureSizing {
+  feasible: boolean
+  reason: string
+  structureType: 'recharge_pit' | 'recharge_trench' | null
+  /** Diameter in metres for a pit; null for trench. */
+  diameterM: number | null
+  /** Length in metres for a trench; null for pit. */
+  lengthM: number | null
+  /** Width in metres for a trench (fixed at 1 m); null for pit. */
+  widthM: number | null
+  depthM: number | null
+  estimatedRechargeM3: number | null
+  /** Human-readable soil source used for this sizing. */
+  soilBasis: string
+  filterMediaLayers: string[]
+  limitationNote: string
+}
+
+const RECHARGE_PIT_DEPTH_M = 2.0
+const RECHARGE_TRENCH_DEPTH_M = 1.5
+const RECHARGE_TRENCH_WIDTH_M = 1.0
+const FILTER_MEDIA_STANDARD = ['Gravel (bottom layer)', 'Coarse sand', 'Fine sand (top layer)']
+
+/**
+ * Derives advisory recharge structure dimensions from the surplus volume,
+ * soil permeability, and open space. All outputs are clearly labelled as
+ * feasibility-level estimates — site Ksat testing is always required.
+ *
+ * Decision rules follow CGWB manual conventions:
+ * - Clay ≥ 35 % → UNSAFE, recommend storage only.
+ * - Open space < 10 m² → not enough room.
+ * - Surplus ≤ 0 → nothing to recharge.
+ * - Open space < 30 m² → recharge pit; ≥ 30 m² → recharge trench.
+ */
+export function engineerRechargeStructure(params: {
+  surplusKl: number
+  openSpaceSqm: number | null
+  annualRainfallMm: number
+  clayPct: number | null
+  rechargeSafetyStatus: RechargeSafetyStatus
+  soilBasis: string
+}): RechargeStructureSizing {
+  const { surplusKl, openSpaceSqm, rechargeSafetyStatus, soilBasis } = params
+
+  const limitationNote =
+    'Dimensions are feasibility-level estimates only. ' +
+    'Site infiltration testing (in-situ Ksat measurement) and a groundwater ' +
+    'depth assessment are required before construction.'
+
+  if (rechargeSafetyStatus === 'UNSAFE') {
+    return {
+      feasible: false,
+      reason:
+        `Clay content ≥ ${SOIL_CLAY_RECHARGE_THRESHOLD_PCT}% — direct groundwater recharge ` +
+        'is not recommended on this soil. Prioritise storage.',
+      structureType: null,
+      diameterM: null, lengthM: null, widthM: null, depthM: null,
+      estimatedRechargeM3: null,
+      soilBasis,
+      filterMediaLayers: [],
+      limitationNote,
+    }
+  }
+
+  if (openSpaceSqm === null) {
+    return {
+      feasible: false,
+      reason: 'Open space not provided — enter the area around the building to assess recharge.',
+      structureType: null,
+      diameterM: null, lengthM: null, widthM: null, depthM: null,
+      estimatedRechargeM3: null,
+      soilBasis,
+      filterMediaLayers: [],
+      limitationNote,
+    }
+  }
+
+  if (openSpaceSqm < MIN_OPEN_SPACE_FOR_RECHARGE_SQM) {
+    return {
+      feasible: false,
+      reason: `Insufficient open space (${openSpaceSqm} m² — need at least ${MIN_OPEN_SPACE_FOR_RECHARGE_SQM} m²).`,
+      structureType: null,
+      diameterM: null, lengthM: null, widthM: null, depthM: null,
+      estimatedRechargeM3: null,
+      soilBasis,
+      filterMediaLayers: [],
+      limitationNote,
+    }
+  }
+
+  if (surplusKl <= 0) {
+    return {
+      feasible: false,
+      reason: 'No annual surplus after household demand — full harvest is consumed. Prioritise storage.',
+      structureType: null,
+      diameterM: null, lengthM: null, widthM: null, depthM: null,
+      estimatedRechargeM3: null,
+      soilBasis,
+      filterMediaLayers: [],
+      limitationNote,
+    }
+  }
+
+  // Volume to route to ground (50% of surplus, matching RECHARGE_ROUTING_FRACTION)
+  const targetRechargeM3 =
+    round((surplusKl * RECHARGE_ROUTING_FRACTION * LITRES_PER_KL) / LITRES_PER_M3, 2)
+
+  // Area needed = target volume ÷ effective infiltration depth over the season
+  // infiltration depth (m) = Ksat (m/hr) × rainy hours
+  const rainyHours = ASSUMED_RAINY_DAYS_PER_YEAR * 24
+  const ksatMPerHr = ASSUMED_INFILTRATION_RATE_MM_HR / 1000
+  const infiltrationDepthM = ksatMPerHr * rainyHours
+  const areaNeededM2 = infiltrationDepthM > 0
+    ? Math.min(targetRechargeM3 / infiltrationDepthM, openSpaceSqm)
+    : openSpaceSqm
+
+  if (openSpaceSqm < 30) {
+    // Recharge pit: circular plan, fixed depth
+    const pitAreaM2 = Math.min(areaNeededM2, Math.PI * ((openSpaceSqm / Math.PI) ** 0.5) ** 2)
+    const radiusM = Math.sqrt(pitAreaM2 / Math.PI)
+    const diameterM = Math.max(0.5, round(Math.ceil(radiusM * 2 / 0.5) * 0.5, 1))
+    const actualVolumeM3 = round(Math.PI * (diameterM / 2) ** 2 * RECHARGE_PIT_DEPTH_M, 2)
+
+    return {
+      feasible: true,
+      reason: `Recharge pit fits the available open space (${openSpaceSqm} m²).`,
+      structureType: 'recharge_pit',
+      diameterM,
+      lengthM: null,
+      widthM: null,
+      depthM: RECHARGE_PIT_DEPTH_M,
+      estimatedRechargeM3: actualVolumeM3,
+      soilBasis,
+      filterMediaLayers: FILTER_MEDIA_STANDARD,
+      limitationNote,
+    }
+  }
+
+  // Recharge trench: 1 m wide, length = available space ÷ 1 m width (capped)
+  const maxLengthM = Math.floor(openSpaceSqm / RECHARGE_TRENCH_WIDTH_M)
+  const neededLengthM = Math.ceil(areaNeededM2 / RECHARGE_TRENCH_WIDTH_M)
+  const lengthM = Math.max(2, Math.min(neededLengthM, maxLengthM))
+  const actualVolumeM3 = round(lengthM * RECHARGE_TRENCH_WIDTH_M * RECHARGE_TRENCH_DEPTH_M, 2)
+
+  return {
+    feasible: true,
+    reason: `Recharge trench suits the larger plot (${openSpaceSqm} m² open space).`,
+    structureType: 'recharge_trench',
+    diameterM: null,
+    lengthM,
+    widthM: RECHARGE_TRENCH_WIDTH_M,
+    depthM: RECHARGE_TRENCH_DEPTH_M,
+    estimatedRechargeM3: actualVolumeM3,
+    soilBasis,
+    filterMediaLayers: FILTER_MEDIA_STANDARD,
+    limitationNote,
+  }
+}
+
+export interface EngineeringSizingResult {
+  tank: EngineerTankResult
+  recharge: RechargeStructureSizing
+}
+
+/**
+ * Top-level orchestrator for engineering sizing advice.
+ * Derives all values from current assessment data — no hardcoded outputs.
+ */
+export function calculateEngineeringSizing(params: {
+  dailyDemandLitres: number
+  surplusKl: number
+  openSpaceSqm: number | null
+  annualRainfallMm: number
+  clayPct: number | null
+  soilBasis: string
+  rechargeSafetyStatus: RechargeSafetyStatus
+}): EngineeringSizingResult {
+  return {
+    tank: engineerTankCapacity(params.dailyDemandLitres),
+    recharge: engineerRechargeStructure({
+      surplusKl: params.surplusKl,
+      openSpaceSqm: params.openSpaceSqm,
+      annualRainfallMm: params.annualRainfallMm,
+      clayPct: params.clayPct,
+      rechargeSafetyStatus: params.rechargeSafetyStatus,
+      soilBasis: params.soilBasis,
+    }),
+  }
+}
+
+/* ------------------------------------------------------------------ */
 /* Soil safety gate                                                    */
 /* ------------------------------------------------------------------ */
 

@@ -6,11 +6,14 @@ import {
   calculateAssessment,
   calculateAssessmentFromDraft,
   calculateDemandCoveragePct,
+  calculateEngineeringSizing,
   calculateHarvestLitres,
   calculateMonthlyHarvestLitres,
   calculatePaybackPeriodYears,
   calculateRunoffLitres,
   calculateWaterDemand,
+  engineerRechargeStructure,
+  engineerTankCapacity,
   estimateRechargePotential,
   estimateSystemCost,
   getRoofMaterial,
@@ -21,6 +24,7 @@ import {
   mmOverSqmToLitres,
 } from './calculationService'
 import { EMPTY_DRAFT, type AssessmentDraft } from '../types/assessment'
+
 
 const REFERENCE = {
   roofAreaSqm: 140,
@@ -344,3 +348,139 @@ describe('draft integration', () => {
     ).toThrow(/Roof material/)
   })
 })
+
+describe('engineering sizing — tank', () => {
+  it('picks the smallest standard size that covers the target', () => {
+    const { recommendedLitres, calculatedLitres } = engineerTankCapacity(540)
+    // 540 L/day × 12 days = 6,480 L → next standard is 10,000
+    expect(calculatedLitres).toBe(6480)
+    expect(recommendedLitres).toBe(10000)
+  })
+
+  it('selects the smallest size for a tiny household', () => {
+    // 30 L/day × 12 = 360 L → smallest standard is 500
+    const result = engineerTankCapacity(30)
+    expect(result.recommendedLitres).toBe(500)
+    expect(result.tankType).toBe('PVC/HDPE overhead')
+  })
+
+  it('caps at the largest standard size for very high demand', () => {
+    // 2000 L/day × 12 = 24,000 L → 25,000
+    const result = engineerTankCapacity(2000)
+    expect(result.recommendedLitres).toBe(25000)
+    expect(result.tankType).toBe('Underground RCC')
+  })
+
+  it('infers HDPE ground-level for mid-range volumes', () => {
+    // 400 L/day × 12 = 4,800 → 5,000
+    const result = engineerTankCapacity(400)
+    expect(result.recommendedLitres).toBe(5000)
+    expect(result.tankType).toBe('PVC/HDPE overhead')
+    // 700 L/day × 12 = 8,400 → 10,000
+    const result2 = engineerTankCapacity(700)
+    expect(result2.recommendedLitres).toBe(10000)
+    expect(result2.tankType).toBe('HDPE ground-level')
+  })
+
+  it('accepts a custom targetDays', () => {
+    const result = engineerTankCapacity(540, 10)
+    // 540 × 10 = 5,400 → 10,000
+    expect(result.calculatedLitres).toBe(5400)
+    expect(result.recommendedLitres).toBe(10000)
+  })
+
+  it('includes a human-readable sizing note', () => {
+    const result = engineerTankCapacity(540)
+    expect(result.sizingNote).toContain('10,000')
+    expect(result.sizingNote).toContain('days')
+  })
+})
+
+describe('engineering sizing — recharge structure', () => {
+  const baseParams = {
+    surplusKl: 50,
+    openSpaceSqm: 20,
+    annualRainfallMm: 1000,
+    clayPct: 20,
+    rechargeSafetyStatus: 'SAFE' as const,
+    soilBasis: 'Sandy loam — Live SoilGrids',
+  }
+
+  it('returns infeasible when clay ≥ 35% (UNSAFE)', () => {
+    const result = engineerRechargeStructure({
+      ...baseParams,
+      rechargeSafetyStatus: 'UNSAFE',
+    })
+    expect(result.feasible).toBe(false)
+    expect(result.reason).toMatch(/clay/i)
+    expect(result.structureType).toBeNull()
+  })
+
+  it('returns infeasible when open space is null', () => {
+    const result = engineerRechargeStructure({ ...baseParams, openSpaceSqm: null })
+    expect(result.feasible).toBe(false)
+    expect(result.reason).toMatch(/open space/i)
+  })
+
+  it('returns infeasible when open space is below minimum', () => {
+    const result = engineerRechargeStructure({ ...baseParams, openSpaceSqm: 5 })
+    expect(result.feasible).toBe(false)
+    expect(result.reason).toMatch(/insufficient/i)
+  })
+
+  it('returns infeasible when there is no surplus', () => {
+    const result = engineerRechargeStructure({ ...baseParams, surplusKl: 0 })
+    expect(result.feasible).toBe(false)
+    expect(result.reason).toMatch(/surplus/i)
+  })
+
+  it('recommends a recharge pit when open space < 30 m²', () => {
+    const result = engineerRechargeStructure({ ...baseParams, openSpaceSqm: 20 })
+    expect(result.feasible).toBe(true)
+    expect(result.structureType).toBe('recharge_pit')
+    expect(result.diameterM).toBeGreaterThan(0)
+    expect(result.depthM).toBe(2.0)
+    expect(result.widthM).toBeNull()
+    expect(result.estimatedRechargeM3).toBeGreaterThan(0)
+  })
+
+  it('recommends a recharge trench when open space ≥ 30 m²', () => {
+    const result = engineerRechargeStructure({ ...baseParams, openSpaceSqm: 50 })
+    expect(result.feasible).toBe(true)
+    expect(result.structureType).toBe('recharge_trench')
+    expect(result.lengthM).toBeGreaterThanOrEqual(2)
+    expect(result.widthM).toBe(1.0)
+    expect(result.depthM).toBe(1.5)
+    expect(result.diameterM).toBeNull()
+  })
+
+  it('always includes a limitation note', () => {
+    const feasible = engineerRechargeStructure(baseParams)
+    expect(feasible.limitationNote).toMatch(/feasibility-level/i)
+    const infeasible = engineerRechargeStructure({ ...baseParams, surplusKl: 0 })
+    expect(infeasible.limitationNote).toMatch(/feasibility-level/i)
+  })
+
+  it('includes filter media layers when feasible', () => {
+    const result = engineerRechargeStructure(baseParams)
+    expect(result.filterMediaLayers).toHaveLength(3)
+    expect(result.filterMediaLayers[0]).toMatch(/gravel/i)
+  })
+})
+
+describe('engineering sizing — orchestrator', () => {
+  it('returns both tank and recharge from calculateEngineeringSizing', () => {
+    const result = calculateEngineeringSizing({
+      dailyDemandLitres: 540,
+      surplusKl: 50,
+      openSpaceSqm: 20,
+      annualRainfallMm: 1000,
+      clayPct: 20,
+      soilBasis: 'Sandy loam',
+      rechargeSafetyStatus: 'SAFE',
+    })
+    expect(result.tank.recommendedLitres).toBeGreaterThan(0)
+    expect(result.recharge.feasible).toBe(true)
+  })
+})
+

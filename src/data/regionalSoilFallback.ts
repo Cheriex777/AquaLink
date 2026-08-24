@@ -238,14 +238,14 @@ const ENTRIES: RegionalSoilEntry[] = [
 ]
 
 const STATE_ALIASES: Record<string, string> = {
-  orissa: 'Odisha',
-  pondicherry: 'Puducherry',
-  uttaranchal: 'Uttarakhand',
-  telengana: 'Telangana',
-  'jammu and kashmir': 'Jammu & Kashmir',
-  'nct of delhi': 'Delhi',
-  'new delhi': 'Delhi',
-  chhattisgarh: 'Chhattisgarh',
+  orissa: 'odisha',
+  pondicherry: 'puducherry',
+  uttaranchal: 'uttarakhand',
+  telengana: 'telangana',
+  'jammu and kashmir': 'jammu & kashmir',
+  'nct of delhi': 'delhi',
+  'new delhi': 'delhi',
+  chhattisgarh: 'chhattisgarh',
 }
 
 const CITY_ALIASES: Record<string, string> = {
@@ -284,7 +284,7 @@ export function toRegionalSoilData(match: RegionalSoilMatch): import('../types/e
 
 function normaliseState(value: string): string {
   const lower = value.trim().toLowerCase()
-  return STATE_ALIASES[lower] ?? value.trim()
+  return STATE_ALIASES[lower] ?? lower
 }
 
 function normaliseCity(value: string | null): string | null {
@@ -309,7 +309,7 @@ export function lookupRegionalSoil(
     const cityMatch = ENTRIES.find(
       (entry) =>
         entry.level === 'city' &&
-        entry.state === state &&
+        entry.state?.toLowerCase() === state &&
         entry.city!.toLowerCase() === city,
     )
     if (cityMatch) return { entry: cityMatch, matchedLevel: 'city' }
@@ -320,14 +320,14 @@ export function lookupRegionalSoil(
       (entry) =>
         entry.level === 'city' &&
         entry.city!.toLowerCase() === city &&
-        (!state || entry.state === state),
+        (!state || entry.state?.toLowerCase() === state),
     )
     if (aliasCityMatch) return { entry: aliasCityMatch, matchedLevel: 'city' }
   }
 
   if (state) {
     const stateMatch = ENTRIES.find(
-      (entry) => entry.level === 'state' && entry.state === state,
+      (entry) => entry.level === 'state' && entry.state?.toLowerCase() === state,
     )
     if (stateMatch) return { entry: stateMatch, matchedLevel: 'state' }
   }

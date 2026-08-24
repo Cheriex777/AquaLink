@@ -1,7 +1,13 @@
+import { AlertTriangle, CheckCircle, XCircle } from 'lucide-react'
 import { Droplets } from 'lucide-react'
 import StaticMapImage from './StaticMapImage'
 import type { AssessmentBundle } from '../../services/assessmentStore'
-import { ENGINE_VERSION } from '../../services/calculationService'
+import {
+  ENGINE_VERSION,
+  calculateEngineeringSizing,
+  deriveRechargeSafety,
+} from '../../services/calculationService'
+import { resolveEffectiveSoil } from '../../services/effectiveSoil'
 import type {
   AirQualityData,
   RainfallData,
@@ -62,6 +68,36 @@ export default function ReportDocument({ bundle }: ReportDocumentProps) {
 
   const recommendation = bundle.recommendation
   const surplusKl = result ? Math.round((result.harvest.annualKl - result.demand.annualKl) * 10) / 10 : null
+
+  // ── Engineering sizing (advisory layer) ──────────────────────────────
+  const effectiveSoil = resolveEffectiveSoil({
+    stateName: a.state,
+    cityName: a.city,
+    overrideTextureClass: null, // override not stored at report time
+    liveSoil: soil ?? null,
+  })
+  const rechargeSafety = deriveRechargeSafety({
+    clayPct: effectiveSoil.clayPctApprox,
+    textureClass: effectiveSoil.textureClass,
+  })
+  const engineeringSizing = result
+    ? calculateEngineeringSizing({
+        dailyDemandLitres: result.demand.dailyLitres,
+        surplusKl: Math.max(0, result.harvest.annualKl - result.demand.annualKl),
+        openSpaceSqm: a.open_space_sqm,
+        annualRainfallMm: result.input.annualRainfallMm,
+        clayPct: effectiveSoil.clayPctApprox,
+        soilBasis:
+          effectiveSoil.textureClass
+            ? `${effectiveSoil.textureClass} · ${effectiveSoil.sourceLabel}${
+                effectiveSoil.clayPctApprox !== null
+                  ? ` · ~${effectiveSoil.clayPctApprox}% clay`
+                  : ''
+              }`
+            : effectiveSoil.sourceLabel,
+        rechargeSafetyStatus: rechargeSafety.status,
+      })
+    : null
 
   return (
     <article className="mx-auto max-w-[800px] bg-white p-8 text-slate-900 shadow-sm print:max-w-none print:p-0 print:shadow-none">
@@ -272,7 +308,97 @@ export default function ReportDocument({ bundle }: ReportDocumentProps) {
         </p>
       )}
 
-      <SectionTitle number={8} title="Cost–Benefit Analysis" />
+      {/* ── Section 8: Engineering Sizing ──────────────────────────── */}
+      <SectionTitle number={8} title="Engineering Sizing & Recommended Dimensions" />
+      {engineeringSizing ? (
+        <div className="space-y-4">
+
+          {/* Card A — Storage Tank */}
+          <div className="overflow-hidden rounded-lg border border-slate-200">
+            <div className="flex items-center gap-2 bg-primary-700 px-4 py-2">
+              <Droplets className="size-4 text-white" aria-hidden="true" />
+              <p className="text-xs font-bold uppercase tracking-wider text-white">Storage Tank</p>
+            </div>
+            <KvTable
+              rows={[
+                ['Daily household demand', `${formatNumber(engineeringSizing.tank.dailyDemandLitres, 1)} L/day`],
+                ['Target storage duration', `${engineeringSizing.tank.targetDays} days`],
+                ['Calculated requirement', `${formatNumber(engineeringSizing.tank.calculatedLitres)} L`],
+                [
+                  'Recommended capacity',
+                  <strong key="cap">{formatNumber(engineeringSizing.tank.recommendedLitres)} L</strong>,
+                ],
+                ['Tank type', engineeringSizing.tank.tankType],
+                ['Sizing note', engineeringSizing.tank.sizingNote],
+              ]}
+            />
+          </div>
+
+          {/* Card B — Recharge Structure */}
+          <div className="overflow-hidden rounded-lg border border-slate-200">
+            <div
+              className={`flex items-center gap-2 px-4 py-2 ${
+                engineeringSizing.recharge.feasible ? 'bg-emerald-700' : 'bg-slate-600'
+              }`}
+            >
+              {engineeringSizing.recharge.feasible ? (
+                <CheckCircle className="size-4 text-white" aria-hidden="true" />
+              ) : (
+                <XCircle className="size-4 text-white" aria-hidden="true" />
+              )}
+              <p className="text-xs font-bold uppercase tracking-wider text-white">
+                Recharge Structure
+              </p>
+            </div>
+
+            {engineeringSizing.recharge.feasible ? (
+              <KvTable
+                rows={[
+                  [
+                    'Structure type',
+                    engineeringSizing.recharge.structureType === 'recharge_pit'
+                      ? 'Recharge pit'
+                      : 'Recharge trench',
+                  ],
+                  [
+                    'Dimensions',
+                    engineeringSizing.recharge.structureType === 'recharge_pit'
+                      ? `${engineeringSizing.recharge.diameterM} m dia. × ${engineeringSizing.recharge.depthM} m deep`
+                      : `${engineeringSizing.recharge.lengthM} m × ${engineeringSizing.recharge.widthM} m × ${engineeringSizing.recharge.depthM} m deep`,
+                  ],
+                  [
+                    'Est. recharge volume',
+                    `${engineeringSizing.recharge.estimatedRechargeM3} m³`,
+                  ],
+                  ['Soil basis', engineeringSizing.recharge.soilBasis],
+                  [
+                    'Filter media (bottom → top)',
+                    engineeringSizing.recharge.filterMediaLayers.join(' → '),
+                  ],
+                ]}
+              />
+            ) : (
+              <div className="px-4 py-3">
+                <p className="text-sm font-medium text-slate-800">
+                  Recharge not recommended for this site
+                </p>
+                <p className="mt-1 text-xs text-slate-600">{engineeringSizing.recharge.reason}</p>
+              </div>
+            )}
+
+            <div className="flex items-start gap-2 border-t border-slate-200 bg-amber-50 px-4 py-3">
+              <AlertTriangle className="mt-0.5 size-3.5 shrink-0 text-amber-600" aria-hidden="true" />
+              <p className="text-xs text-amber-800">
+                {engineeringSizing.recharge.limitationNote}
+              </p>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <p className="text-sm text-slate-500">Results snapshot unavailable for this assessment.</p>
+      )}
+
+      <SectionTitle number={9} title="Cost–Benefit Analysis" />
       {result ? (
         <>
           <table className="w-full border-collapse text-sm">
@@ -336,7 +462,7 @@ export default function ReportDocument({ bundle }: ReportDocumentProps) {
         <p className="text-sm text-slate-500">Results snapshot unavailable for this assessment.</p>
       )}
 
-      <SectionTitle number={9} title="Assumptions & Limitations" />
+      <SectionTitle number={10} title="Assumptions & Limitations" />
       <ul className="list-disc space-y-1.5 pl-5 text-sm text-slate-600">
         <li>Collection efficiency of {result ? Math.round(result.input.collectionEfficiency * 100) : 90}% accounts for first-flush diversion and filter losses.</li>
         <li>Runoff coefficient reflects the selected roof material; real values vary with surface condition.</li>
@@ -348,7 +474,7 @@ export default function ReportDocument({ bundle }: ReportDocumentProps) {
         <li>This document is a feasibility estimate, not a construction drawing or regulatory approval.</li>
       </ul>
 
-      <SectionTitle number={10} title="Data Sources" />
+      <SectionTitle number={11} title="Data Sources" />
       <ul className="list-disc space-y-1.5 pl-5 text-sm text-slate-600">
         <li>Rainfall normals — Open-Meteo Historical Weather API (ERA5 daily precipitation).</li>
         <li>Soil properties — SoilGrids 2.0, ISRIC World Soil Information.</li>
