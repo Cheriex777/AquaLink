@@ -14,7 +14,6 @@ const ReportViewPage = lazy(() => import('./pages/ReportViewPage'))
 const EnvironmentPage = lazy(() => import('./pages/EnvironmentPage'))
 const GuidelinesPage = lazy(() => import('./pages/GuidelinesPage'))
 const SettingsPage = lazy(() => import('./pages/SettingsPage'))
-const SchemeChatbotPage = lazy(() => import('./pages/SchemeChatbotPage'))
 
 function PageLoader() {
   return (
@@ -85,10 +84,6 @@ export default function App() {
               </GuestRoute>
             }
           />
-          <Route
-  path="/scheme-assistant"
-  element={<Lazy component={SchemeChatbotPage} />}
-/>
 
           {/* Protected routes — guests are sent to /login */}
           <Route
@@ -106,8 +101,6 @@ export default function App() {
             <Route path="/environment" element={<Lazy component={EnvironmentPage} />} />
             <Route path="/guidelines" element={<Lazy component={GuidelinesPage} />} />
             <Route path="/settings" element={<Lazy component={SettingsPage} />} />
-
-            
             <Route path="*" element={<NotFoundPage />} />
           </Route>
         </Routes>
