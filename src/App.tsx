@@ -5,6 +5,7 @@ import { AuthProvider } from './context/AuthContext'
 import AuthModal from './components/auth/AuthModal'
 import AppLayout from './components/layout/AppLayout'
 import NotFoundPage from './pages/NotFoundPage'
+import AuthPage from './pages/AuthPage'
 
 const DashboardPage = lazy(() => import('./pages/DashboardPage'))
 const NewAssessmentPage = lazy(() => import('./pages/NewAssessmentPage'))
@@ -36,6 +37,8 @@ export default function App() {
     <AuthProvider>
       <BrowserRouter>
         <Routes>
+          <Route path="/login" element={<AuthPage mode="signin" />} />
+          <Route path="/signup" element={<AuthPage mode="signup" />} />
           <Route element={<AppLayout />}>
             <Route index element={<Navigate to="/dashboard" replace />} />
             <Route path="/dashboard" element={<Lazy component={DashboardPage} />} />

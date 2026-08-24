@@ -4,6 +4,21 @@ import type { SoilData } from '../types/environmental'
 const SOILGRIDS_ENDPOINT = 'https://rest.isric.org/soilgrids/v2.0/properties/query'
 const DEPTH_LABEL = '0-5cm'
 
+export const USDA_TEXTURE_CLASSES = [
+  'Clay',
+  'Clay loam',
+  'Loam',
+  'Loamy sand',
+  'Sand',
+  'Sandy clay',
+  'Sandy clay loam',
+  'Sandy loam',
+  'Silt',
+  'Silt loam',
+  'Silty clay',
+  'Silty clay loam',
+] as const
+
 interface SoilGridsResponse {
   properties?: {
     layers?: Array<{
@@ -91,5 +106,13 @@ export async function fetchSoilData(
       ? classifyUsdaTexture(sandPct, siltPct, clayPct)
       : null
 
-  return { sandPct, siltPct, clayPct, phH2o, textureClass, depthLabel: DEPTH_LABEL }
+  return {
+    sandPct,
+    siltPct,
+    clayPct,
+    phH2o,
+    textureClass,
+    depthLabel: DEPTH_LABEL,
+    provider: 'soilgrids-rest',
+  }
 }

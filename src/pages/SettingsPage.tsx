@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import {
   CloudUpload,
   Database,
@@ -16,7 +17,7 @@ import { RESOURCES } from '../content/guidelines'
 const cardClass = 'rounded-xl border border-slate-200 bg-white'
 
 export default function SettingsPage() {
-  const { user, loading: authLoading, openAuthModal } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [signingOut, setSigningOut] = useState(false)
 
   async function handleSignOut() {
@@ -80,13 +81,12 @@ export default function SettingsPage() {
         ) : (
           <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
             <p className="text-sm text-slate-600">You are browsing without an account.</p>
-            <button
-              type="button"
-              onClick={openAuthModal}
+            <Link
+              to="/login"
               className="rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
             >
               Sign in / Create account
-            </button>
+            </Link>
           </div>
         )}
       </section>

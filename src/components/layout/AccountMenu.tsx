@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
 import { CircleUserRound, LogOut, Loader2 } from 'lucide-react'
+import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../../hooks/useAuth'
 import { describeAuthError, signOutUser } from '../../services/authService'
 
 export default function AccountMenu() {
-  const { user, loading, configured, openAuthModal } = useAuth()
+  const { user, loading, configured } = useAuth()
+  const navigate = useNavigate()
   const [menuOpen, setMenuOpen] = useState(false)
   const [signingOut, setSigningOut] = useState(false)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -42,7 +44,7 @@ export default function AccountMenu() {
     <div ref={containerRef} className="relative ml-auto">
       <button
         type="button"
-        onClick={() => (user ? setMenuOpen((open) => !open) : openAuthModal())}
+        onClick={() => (user ? setMenuOpen((open) => !open) : navigate('/login'))}
         className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-2 text-sm font-medium text-slate-600 hover:bg-slate-100"
         aria-haspopup="menu"
         aria-expanded={menuOpen}

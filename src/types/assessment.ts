@@ -36,6 +36,7 @@ export interface AssessmentDraft {
   householdSize: string
   perCapitaLpd: string
   annualRainfallMm: string
+  soilTextureOverride: string
   roofPolygon: GeoPoint[]
   roofAreaSource: RoofAreaSource
 }
@@ -55,6 +56,7 @@ export const EMPTY_DRAFT: AssessmentDraft = {
   householdSize: '4',
   perCapitaLpd: '135',
   annualRainfallMm: '',
+  soilTextureOverride: '',
   roofPolygon: [],
   roofAreaSource: 'manual',
 }

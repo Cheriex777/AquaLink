@@ -125,6 +125,21 @@ export default function NewAssessmentPage() {
     wizardHasCoordinates ? wizardLongitude : null,
   )
 
+  const effectiveSoil =
+    draft.soilTextureOverride.trim() !== ''
+      ? {
+          ...(environmentStates.soil.data ?? {
+            sandPct: null,
+            siltPct: null,
+            clayPct: null,
+            phH2o: null,
+            depthLabel: 'User-provided',
+          }),
+          textureClass: draft.soilTextureOverride.trim(),
+          provider: 'user-provided' as const,
+        }
+      : environmentStates.soil.data
+
   useEffect(
     () => () => {
       if (computeTimerRef.current !== null) window.clearTimeout(computeTimerRef.current)
@@ -208,7 +223,7 @@ export default function NewAssessmentPage() {
             annualDemandKl: result.demand.annualKl,
             openSpaceSqm:
               openSpaceTrimmed === '' ? null : Number(openSpaceTrimmed),
-            soilTextureClass: environmentStates.soil.data?.textureClass ?? null,
+             soilTextureClass: effectiveSoil?.textureClass ?? null,
             monthlyRainfallMm: result.harvest.monthlyLitres
               ? environmentStates.rainfall.data?.monthlyNormalsMm?.map(
                   (entry) => entry.totalMm,
@@ -232,10 +247,7 @@ export default function NewAssessmentPage() {
         environmentStates.rainfall.status === 'success'
           ? environmentStates.rainfall.data
           : null,
-      soil:
-        environmentStates.soil.status === 'success'
-          ? environmentStates.soil.data
-          : null,
+      soil: effectiveSoil,
       airQuality:
         environmentStates.airQuality.status === 'success'
           ? environmentStates.airQuality.data

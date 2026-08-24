@@ -19,7 +19,7 @@ import type { AssessmentListItem } from '../types/database'
 import { formatDate, formatNumber } from '../utils/format'
 
 export default function ReportsPage() {
-  const { user, loading: authLoading, openAuthModal } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [items, setItems] = useState<AssessmentListItem[]>([])
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
@@ -126,13 +126,12 @@ export default function ReportsPage() {
           title="Sign in to see your reports"
           description="Assessments are private to your account. Sign in or create a free account to save and view them."
           action={
-            <button
-              type="button"
-              onClick={openAuthModal}
+            <Link
+              to="/login"
               className="inline-flex items-center rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
             >
               Sign in / Create account
-            </button>
+            </Link>
           }
         />
       ) : (

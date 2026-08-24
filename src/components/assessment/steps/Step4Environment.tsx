@@ -12,6 +12,7 @@ import Skeleton from '../../common/Skeleton'
 import { TextField } from '../fields'
 import type { useEnvironmentalData, EnvironmentalKey } from '../../../hooks/useEnvironmentalData'
 import type { StepProps } from './stepProps'
+import { USDA_TEXTURE_CLASSES } from '../../../services/soilService'
 
 type EnvironmentStates = ReturnType<typeof useEnvironmentalData>['states']
 
@@ -216,6 +217,7 @@ export default function Step4Environment({
                   clayPct: number | null
                   phH2o: number | null
                   depthLabel: string
+                  provider?: 'soilgrids-rest' | 'user-provided'
                 }
                 const parts: string[] = []
                 if (soil.textureClass) parts.push(soil.textureClass)
@@ -231,7 +233,11 @@ export default function Step4Environment({
                         Sand {soil.sandPct ?? '—'}% · Silt {soil.siltPct ?? '—'}% ·
                         Clay {soil.clayPct ?? '—'}%
                       </li>
-                      <li>SoilGrids top layer ({soil.depthLabel}) · ISRIC</li>
+                      <li>
+                        {soil.provider === 'user-provided'
+                          ? 'User-provided texture'
+                          : `SoilGrids top layer (${soil.depthLabel}) · ISRIC`}
+                      </li>
                     </ul>
                   </>
                 )
@@ -268,6 +274,42 @@ export default function Step4Environment({
                 )
               }}
             />
+          </div>
+
+          <div className="rounded-xl border border-primary-100 bg-primary-50/50 p-5">
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h4 className="text-sm font-semibold text-slate-900">Soil texture</h4>
+                <p className="mt-1 max-w-2xl text-xs leading-5 text-slate-600">
+                  SoilGrids is temporarily unavailable in some regions. If you know your soil type,
+                  choose it here so recommendations can still use it. This is clearly marked as user-provided.
+                </p>
+              </div>
+              {draft.soilTextureOverride ? (
+                <span className="rounded-full bg-white px-2.5 py-1 text-[10px] font-semibold uppercase tracking-wide text-primary-700 ring-1 ring-inset ring-primary-200">
+                  User-provided
+                </span>
+              ) : null}
+            </div>
+            <label htmlFor="soil-texture-override" className="mt-4 block text-xs font-semibold uppercase tracking-wide text-slate-500">
+              Select a texture (optional)
+            </label>
+            <select
+              id="soil-texture-override"
+              value={draft.soilTextureOverride}
+              onChange={(event) => onChange({ soilTextureOverride: event.target.value })}
+              className="mt-1.5 w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-slate-800 shadow-sm focus:border-primary-500 focus:outline-none focus:ring-2 focus:ring-primary-100 sm:max-w-sm"
+            >
+              <option value="">No manual override</option>
+              {USDA_TEXTURE_CLASSES.map((texture) => (
+                <option key={texture} value={texture}>{texture}</option>
+              ))}
+            </select>
+            {draft.soilTextureOverride ? (
+              <p className="mt-2 text-xs text-primary-700">
+                Recommendations will use <strong>{draft.soilTextureOverride}</strong> as the effective soil texture.
+              </p>
+            ) : null}
           </div>
 
           <TextField

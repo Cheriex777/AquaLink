@@ -23,6 +23,7 @@ export interface SoilData {
   phH2o: number | null
   textureClass: string | null
   depthLabel: string
+  provider?: 'soilgrids-rest' | 'user-provided'
 }
 
 export interface AirQualityData {

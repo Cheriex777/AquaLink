@@ -22,6 +22,7 @@ type EnvironmentStates = {
       clayPct: number | null
       phH2o: number | null
       depthLabel: string
+      provider?: 'soilgrids-rest' | 'user-provided'
     } | null
     error: string | null
   }
@@ -103,7 +104,8 @@ export default function EnvironmentalSummary({ states }: EnvironmentalSummaryPro
               {soil.textureClass ?? 'Texture n/a'}
               {soil.clayPct !== null ? ` · ${soil.clayPct}% clay` : ''}
               {soil.phH2o !== null ? ` · pH ${soil.phH2o}` : ''} ·{' '}
-              {deriveSoilPermeability(soil.textureClass)} permeability (SoilGrids)
+               {deriveSoilPermeability(soil.textureClass)} permeability (
+               {soil.provider === 'user-provided' ? 'user-provided' : 'SoilGrids'})
             </>
           ) : null
         }

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
 import {
   AlertTriangle,
+  ArrowUpRight,
   ChevronRight,
   CloudRain,
   Droplets,
@@ -11,6 +12,7 @@ import {
   PiggyBank,
   Plus,
   RefreshCw,
+  Sparkles,
   Wind,
   type LucideIcon,
 } from 'lucide-react'
@@ -85,7 +87,7 @@ function EnvMiniCard({
 }
 
 export default function DashboardPage() {
-  const { user, loading: authLoading, openAuthModal } = useAuth()
+  const { user, loading: authLoading } = useAuth()
   const [data, setData] = useState<DashboardData | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
@@ -159,13 +161,13 @@ export default function DashboardPage() {
           Assessments are private to each account — sign in or create a free account to view
           summaries, environmental snapshots and saved reports.
         </p>
-        <button
-          type="button"
-          onClick={openAuthModal}
-          className="mt-5 inline-flex items-center rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
+        <Link
+          to="/login"
+          className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
         >
-          Sign in / Create account
-        </button>
+          Sign in to continue
+          <ArrowUpRight className="size-4" aria-hidden="true" />
+        </Link>
       </section>
     )
   }
@@ -233,21 +235,43 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-8">
+      <div className="relative overflow-hidden rounded-2xl bg-slate-950 px-6 py-7 text-white shadow-xl shadow-slate-900/10 sm:px-8">
+        <div className="absolute -right-16 -top-24 size-72 rounded-full bg-primary-500/20 blur-3xl" />
+        <div className="absolute bottom-0 right-1/4 size-32 rounded-full bg-cyan-300/10 blur-2xl" />
+        <div className="relative flex flex-wrap items-end justify-between gap-6">
+          <div className="max-w-xl">
+            <div className="mb-3 inline-flex items-center gap-2 rounded-full bg-white/10 px-3 py-1.5 text-xs font-medium text-primary-100">
+              <Sparkles className="size-3.5" aria-hidden="true" />
+              Water planning, made practical
+            </div>
+            <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
+              Welcome back{user.email ? `, ${user.email.split('@')[0]}` : ''}
+            </h2>
+            <p className="mt-2 max-w-lg text-sm leading-6 text-slate-300">
+              See your rainwater harvesting potential, environmental context, and latest property insights in one place.
+            </p>
+          </div>
+          <Link
+            to="/new-assessment"
+            className="relative inline-flex items-center gap-2 rounded-xl bg-primary-500 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-primary-950/30 hover:bg-primary-400"
+          >
+            <Plus className="size-4" aria-hidden="true" />
+            Start New Assessment
+            <ArrowUpRight className="size-4" aria-hidden="true" />
+          </Link>
+        </div>
+      </div>
       <div className="flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h2 className="text-xl font-semibold tracking-tight text-slate-900">
-            Welcome back{user.email ? `, ${user.email.split('@')[0]}` : ''}
-          </h2>
-          <p className="mt-0.5 text-sm text-slate-500">
-            Your saved rainwater harvesting assessments at a glance.
-          </p>
+          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-primary-700">Your overview</p>
+          <h2 className="mt-1 text-lg font-semibold tracking-tight text-slate-900">Assessment snapshot</h2>
         </div>
         <Link
-          to="/new-assessment"
-          className="inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2.5 text-sm font-medium text-white shadow-sm hover:bg-primary-700"
+          to="/reports"
+          className="inline-flex items-center gap-1 text-sm font-medium text-primary-700 hover:text-primary-800"
         >
-          <Plus className="size-4" aria-hidden="true" />
-          Start New Assessment
+          Browse all reports
+          <ChevronRight className="size-4" aria-hidden="true" />
         </Link>
       </div>
 
