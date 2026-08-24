@@ -12,7 +12,7 @@ import Skeleton from '../../common/Skeleton'
 import { TextField } from '../fields'
 import type { useEnvironmentalData, EnvironmentalKey } from '../../../hooks/useEnvironmentalData'
 import type { StepProps } from './stepProps'
-import { USDA_TEXTURE_CLASSES } from '../../../services/soilService'
+import { USDA_TEXTURE_CLASSES } from '../../../services/recommendationService'
 
 type EnvironmentStates = ReturnType<typeof useEnvironmentalData>['states']
 
@@ -28,10 +28,18 @@ interface Step4EnvironmentProps extends StepProps {
   onEditLocation: () => void
 }
 
-function LiveBadge() {
+function LiveBadge({ label = 'Live data' }: { label?: string }) {
   return (
     <span className="inline-flex shrink-0 items-center rounded-full bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-emerald-700">
-      Live data
+      {label}
+    </span>
+  )
+}
+
+function FallbackBadge() {
+  return (
+    <span className="inline-flex shrink-0 items-center rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-amber-700">
+      Regional fallback estimate
     </span>
   )
 }
@@ -41,14 +49,26 @@ function EnvResultCard({
   title,
   state,
   onRetry,
+  badge,
   renderContent,
 }: {
   icon: LucideIcon
   title: string
   state: AnyEnvironmentState
   onRetry: () => void
+  badge?: React.ReactNode
   renderContent: () => React.ReactNode
 }) {
+  const resolvedBadge = badge ?? (
+    state.status === 'success' ? (
+      <LiveBadge />
+    ) : state.status === 'error' ? (
+      <span className="inline-flex shrink-0 items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+        Unavailable
+      </span>
+    ) : null
+  )
+
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-5">
       <div className="flex items-center justify-between gap-2">
@@ -56,13 +76,7 @@ function EnvResultCard({
           <Icon className="size-4" aria-hidden="true" />
           {title}
         </span>
-        {state.status === 'success' ? (
-          <LiveBadge />
-        ) : state.status === 'error' ? (
-          <span className="inline-flex shrink-0 items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-            Unavailable
-          </span>
-        ) : null}
+        {resolvedBadge}
       </div>
 
       {state.status === 'loading' || state.status === 'idle' ? (
@@ -209,36 +223,57 @@ export default function Step4Environment({
               title="Soil"
               state={states.soil}
               onRetry={() => reload('soil')}
+              badge={
+                states.soil.status === 'success' && states.soil.data !== null ? (
+                  states.soil.data.provider === 'regional-fallback' ? (
+                    <FallbackBadge />
+                  ) : states.soil.data.provider === 'user-provided' ? (
+                    <span className="inline-flex shrink-0 items-center rounded-full bg-slate-100 px-2 py-0.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                      User-provided
+                    </span>
+                  ) : (
+                    <LiveBadge label="Live SoilGrids data" />
+                  )
+                ) : undefined
+              }
               renderContent={() => {
-                const soil = states.soil.data as {
-                  textureClass: string | null
-                  sandPct: number | null
-                  siltPct: number | null
-                  clayPct: number | null
-                  phH2o: number | null
-                  depthLabel: string
-                  provider?: 'soilgrids-rest' | 'user-provided'
-                }
+                const soil = states.soil.data
+                if (soil === null) return null
                 const parts: string[] = []
                 if (soil.textureClass) parts.push(soil.textureClass)
                 if (soil.clayPct !== null) parts.push(`${soil.clayPct}% clay`)
                 if (soil.phH2o !== null) parts.push(`pH ${soil.phH2o}`)
+                const isFallback = soil.provider === 'regional-fallback'
                 return (
                   <>
                     <p className="mt-3 text-xl font-semibold tracking-tight text-slate-900">
                       {parts.length > 0 ? parts.join(' · ') : 'Limited data'}
                     </p>
                     <ul className="mt-2 space-y-1 text-xs text-slate-500">
-                      <li>
-                        Sand {soil.sandPct ?? '—'}% · Silt {soil.siltPct ?? '—'}% ·
-                        Clay {soil.clayPct ?? '—'}%
-                      </li>
-                      <li>
-                        {soil.provider === 'user-provided'
-                          ? 'User-provided texture'
-                          : `SoilGrids top layer (${soil.depthLabel}) · ISRIC`}
-                      </li>
+                      {isFallback ? (
+                        <li>{soil.depthLabel}</li>
+                      ) : (
+                        <li>
+                          Sand {soil.sandPct ?? '—'}% · Silt {soil.siltPct ?? '—'}% ·
+                          Clay {soil.clayPct ?? '—'}%
+                        </li>
+                      )}
+                      {soil.matchNote ? (
+                        <li>{soil.matchNote}</li>
+                      ) : (
+                        <li>
+                          {soil.provider === 'user-provided'
+                            ? 'User-provided texture'
+                            : `SoilGrids top layer (${soil.depthLabel}) · ISRIC`}
+                        </li>
+                      )}
                     </ul>
+                    {isFallback ? (
+                      <p className="mt-2 rounded-md bg-amber-50 px-2.5 py-1.5 text-[11px] leading-relaxed text-amber-800">
+                        Live SoilGrids data is currently unavailable. A regional
+                        soil estimate is being used for preliminary assessment.
+                      </p>
+                    ) : null}
                   </>
                 )
               }}

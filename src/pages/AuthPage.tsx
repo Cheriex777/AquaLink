@@ -143,7 +143,6 @@ export default function AuthPage({ mode }: { mode: AuthMode }) {
                 {isSignUp ? 'Sign in' : 'Create an account'}
               </Link>
             </p>
-            <Link to="/dashboard" className="mt-8 block text-center text-xs text-slate-400 hover:text-slate-600">Continue to the app without signing in</Link>
           </div>
         </section>
       </div>

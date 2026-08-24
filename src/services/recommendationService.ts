@@ -52,7 +52,60 @@ export interface RecommendationInput {
   annualDemandKl: number
   openSpaceSqm: number | null
   soilTextureClass: string | null
+  soilTextureProvenance?: 'live' | 'regional-fallback' | 'user-provided' | null
   monthlyRainfallMm?: number[] | null
+}
+
+export const USDA_TEXTURE_CLASSES = [
+  'Sand',
+  'Loamy sand',
+  'Sandy loam',
+  'Loam',
+  'Silt loam',
+  'Silt',
+  'Sandy clay loam',
+  'Clay loam',
+  'Silty clay loam',
+  'Sandy clay',
+  'Silty clay',
+  'Clay',
+] as const
+
+export interface FiltrationAdvice {
+  level: 'standard' | 'enhanced' | 'heavy-duty'
+  summary: string
+  detail: string
+}
+
+/**
+ * Defined JalSetu rule table linking local air quality to filtration and
+ * first-flush practice. Deliberately simple and auditable — not a scientific
+ * model, just a consistent engineering guideline.
+ */
+export function getFiltrationAdvice(airAqi: number | null): FiltrationAdvice {
+  if (airAqi !== null && airAqi > 150) {
+    return {
+      level: 'heavy-duty',
+      summary: 'Heavy-duty filtration (gravel–sand–activated-carbon chamber)',
+      detail:
+        `Because local air quality is poor (AQI ${Math.round(airAqi)}), finer particulate and pollutant loads are expected on the roof — add an activated-carbon stage and inspect the filter quarterly.`,
+    }
+  }
+  if (airAqi !== null && airAqi > 100) {
+    return {
+      level: 'enhanced',
+      summary: 'Enhanced filter (gravel–sand with charcoal layer)',
+      detail:
+        `Because local air quality is moderate-to-poor (AQI ${Math.round(airAqi)}), an added charcoal layer is recommended with quarterly inspection.`,
+    }
+  }
+  const context =
+    airAqi !== null ? `(AQI ${Math.round(airAqi)})` : '(no AQI reading available)'
+  return {
+    level: 'standard',
+    summary: 'Standard filter (gravel–sand chamber)',
+    detail: `Local air-quality conditions ${context} do not call for additional media — maintain the standard gravel–sand filter with pre-monsoon checks.`,
+  }
 }
 
 export interface Recommendation {
@@ -137,6 +190,20 @@ function buildContext(input: RecommendationInput): SiteContext {
   }
 }
 
+function soilFactorText(ctx: SiteContext): string | null {
+  if (!ctx.input.soilTextureClass) return null
+  const provenanceLabel =
+    ctx.input.soilTextureProvenance === 'user-provided'
+      ? 'user-provided'
+      : ctx.input.soilTextureProvenance === 'regional-fallback'
+        ? 'regional fallback'
+        : ctx.input.soilTextureProvenance === 'live'
+          ? 'SoilGrids'
+          : null
+  const suffix = provenanceLabel ? ` · ${provenanceLabel}` : ''
+  return `Soil: ${ctx.input.soilTextureClass} (${ctx.permeability} permeability${suffix})`
+}
+
 function clampScore(score: number): number {
   return Math.max(10, Math.min(95, Math.round(score / 5) * 5))
 }
@@ -147,9 +214,8 @@ function scoreCandidates(ctx: SiteContext): Candidate[] {
   if (input.openSpaceSqm !== null) {
     factors.push(`Open space: ${input.openSpaceSqm} m²`)
   }
-  if (input.soilTextureClass) {
-    factors.push(`Soil: ${input.soilTextureClass} (${ctx.permeability} permeability)`)
-  }
+  const soilText = soilFactorText(ctx)
+  if (soilText) factors.push(soilText)
   factors.push(`Surplus after demand: ${Math.round(ctx.surplusKl * 10) / 10} kL/yr`)
   if (ctx.monsoonShare !== null) {
     factors.push(`Monsoon concentration: ${ctx.monsoonShare}% of annual rain`)

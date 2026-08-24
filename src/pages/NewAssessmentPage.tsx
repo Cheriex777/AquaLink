@@ -120,9 +120,14 @@ export default function NewAssessmentPage() {
   const wizardLatitude = parseCoordinate(draft.latitude, isValidLatitude)
   const wizardLongitude = parseCoordinate(draft.longitude, isValidLongitude)
   const wizardHasCoordinates = wizardLatitude !== null && wizardLongitude !== null
+  const wizardLocationNames = {
+    state: draft.state.trim() || null,
+    city: draft.city.trim() || null,
+  }
   const { states: environmentStates, reload: reloadEnvironment } = useEnvironmentalData(
     wizardHasCoordinates ? wizardLatitude : null,
     wizardHasCoordinates ? wizardLongitude : null,
+    wizardLocationNames,
   )
 
   const effectiveSoil =
@@ -215,6 +220,7 @@ export default function NewAssessmentPage() {
         setEstimate(result)
         setEstimateFailed(false)
         const openSpaceTrimmed = draft.openSpaceSqm.trim()
+        const soilProvider = effectiveSoil?.provider ?? null
         setRecommendation(
           recommendRechargeStructures({
             roofAreaSqm: result.input.roofAreaSqm,
@@ -223,12 +229,19 @@ export default function NewAssessmentPage() {
             annualDemandKl: result.demand.annualKl,
             openSpaceSqm:
               openSpaceTrimmed === '' ? null : Number(openSpaceTrimmed),
-             soilTextureClass: effectiveSoil?.textureClass ?? null,
-            monthlyRainfallMm: result.harvest.monthlyLitres
-              ? environmentStates.rainfall.data?.monthlyNormalsMm?.map(
-                  (entry) => entry.totalMm,
-                ) ?? null
-              : null,
+            soilTextureClass: effectiveSoil?.textureClass ?? null,
+            soilTextureProvenance:
+              soilProvider === 'user-provided'
+                ? 'user-provided'
+                : soilProvider === 'regional-fallback'
+                  ? 'regional-fallback'
+                  : soilProvider !== null
+                    ? 'live'
+                    : null,
+            monthlyRainfallMm:
+              environmentStates.rainfall.data?.monthlyNormalsMm?.map(
+                (entry) => entry.totalMm,
+              ) ?? null,
           }),
         )
       } catch {

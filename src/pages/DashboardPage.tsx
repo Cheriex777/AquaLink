@@ -153,25 +153,6 @@ export default function DashboardPage() {
     return <DashboardSkeleton />
   }
 
-  if (!user) {
-    return (
-      <section className={`${cardClass} flex flex-col items-center justify-center px-6 py-16 text-center`}>
-        <h2 className="text-base font-semibold text-slate-900">Sign in to see your dashboard</h2>
-        <p className="mt-1 max-w-md text-sm text-slate-500">
-          Assessments are private to each account — sign in or create a free account to view
-          summaries, environmental snapshots and saved reports.
-        </p>
-        <Link
-          to="/login"
-          className="mt-5 inline-flex items-center gap-2 rounded-lg bg-primary-600 px-4 py-2 text-sm font-medium text-white hover:bg-primary-700"
-        >
-          Sign in to continue
-          <ArrowUpRight className="size-4" aria-hidden="true" />
-        </Link>
-      </section>
-    )
-  }
-
   if (error) {
     return (
       <section className={`${cardClass} flex flex-col items-center justify-center px-6 py-16 text-center`}>
@@ -245,8 +226,7 @@ export default function DashboardPage() {
               Water planning, made practical
             </div>
             <h2 className="text-2xl font-semibold tracking-tight sm:text-3xl">
-              Welcome back{user.email ? `, ${user.email.split('@')[0]}` : ''}
-            </h2>
+              Welcome back{user?.email ? `, ${user.email.split('@')[0]}` : ''}            </h2>
             <p className="mt-2 max-w-lg text-sm leading-6 text-slate-300">
               See your rainwater harvesting potential, environmental context, and latest property insights in one place.
             </p>

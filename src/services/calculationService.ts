@@ -26,6 +26,19 @@ export const DEFAULT_WATER_TARIFF_PER_KL_INR = 40
 export const RECHARGE_ROUTING_FRACTION = 0.5
 export const MIN_OPEN_SPACE_FOR_RECHARGE_SQM = 10
 
+/**
+ * JalSetu soil safety model — single source of truth.
+ * Clay content at or above this percentage marks direct groundwater
+ * recharge as UNSUITABLE pending professional verification.
+ */
+export const SOIL_CLAY_RECHARGE_THRESHOLD_PCT = 35
+
+/**
+ * First-flush diversion: divert the first 0.5 mm of rainfall over the roof
+ * (≈ 0.5 L per m²) before harvesting, discarding dust/debris wash-off.
+ */
+export const FIRST_FLUSH_DIVERSION_MM = 0.5
+
 export const FIRST_FLUSH_FILTER_COST_INR = 6000
 export const PLUMBING_COST_PER_SQM_INR = 40
 export const TANK_COST_PER_LITRE_INR = 12
@@ -281,6 +294,96 @@ export function calculatePaybackPeriodYears(
   assertNonNegative('annualSavingsInr', annualSavingsInr)
   if (annualSavingsInr <= 0) return null
   return Math.round((totalCostInr / annualSavingsInr) * 10) / 10
+}
+
+/* ------------------------------------------------------------------ */
+/* Soil safety gate                                                    */
+/* ------------------------------------------------------------------ */
+
+export type RechargeSafetyStatus = 'SAFE' | 'CAUTION' | 'UNSAFE' | 'NOT_ASSESSED'
+
+export interface RechargeSafetyAssessment {
+  status: RechargeSafetyStatus
+  headline: string
+  explanation: string
+}
+
+const CAUTION_TEXTURES = ['clay loam', 'silty clay loam', 'sandy clay loam']
+
+/**
+ * Derives the recharge safety status from the best available soil estimate.
+ * Uses clay percentage when present, otherwise falls back to the texture
+ * class. Wording is deliberately cautious — this is a screening model.
+ */
+export function deriveRechargeSafety(params: {
+  clayPct?: number | null
+  textureClass?: string | null
+}): RechargeSafetyAssessment {
+  const { clayPct, textureClass } = params
+
+  if (typeof clayPct === 'number' && Number.isFinite(clayPct) && clayPct >= 0) {
+    if (clayPct < 25) {
+      return {
+        status: 'SAFE',
+        headline: `${Math.round(clayPct)}% clay`,
+        explanation:
+          'Based on the available soil estimate, groundwater recharge appears potentially suitable.',
+      }
+    }
+    if (clayPct <= SOIL_CLAY_RECHARGE_THRESHOLD_PCT) {
+      return {
+        status: 'CAUTION',
+        headline: `${Math.round(clayPct)}% clay`,
+        explanation:
+          `Based on the available soil estimate, recharge may work but infiltration could be slow — treat as CAUTION near the ${SOIL_CLAY_RECHARGE_THRESHOLD_PCT}% threshold.`,
+      }
+    }
+    return {
+      status: 'UNSAFE',
+      headline: `${Math.round(clayPct)}% clay`,
+      explanation:
+        'Based on the available soil estimate, direct groundwater recharge may be unsuitable — prioritise storage and verify the site with a qualified professional.',
+    }
+  }
+
+  if (textureClass && textureClass.trim()) {
+    const t = textureClass.trim().toLowerCase()
+    if (t === 'clay' || t === 'sandy clay' || t === 'silty clay') {
+      return {
+        status: 'UNSAFE',
+        headline: textureClass,
+        explanation:
+          'Based on the available soil estimate (high-clay texture), direct groundwater recharge may be unsuitable — prioritise storage and verify the site professionally.',
+      }
+    }
+    if (CAUTION_TEXTURES.some((candidate) => t.includes(candidate))) {
+      return {
+        status: 'CAUTION',
+        headline: textureClass,
+        explanation:
+          'Based on the available soil estimate, recharge may work but infiltration could be slow — treat as CAUTION and monitor performance.',
+      }
+    }
+    return {
+      status: 'SAFE',
+      headline: textureClass,
+      explanation:
+        'Based on the available soil estimate, groundwater recharge appears potentially suitable.',
+    }
+  }
+
+  return {
+    status: 'NOT_ASSESSED',
+    headline: 'Not assessed',
+    explanation:
+      'Soil information was unavailable for this location, so recharge safety could not be assessed. Enter your state/city or provide a soil texture to enable it.',
+  }
+}
+
+/** First-flush diversion volume in litres for a given roof area. */
+export function firstFlushLitres(roofAreaSqm: number): number {
+  assertNonNegative('roofAreaSqm', roofAreaSqm)
+  return Math.round(mmOverSqmToLitres(roofAreaSqm, FIRST_FLUSH_DIVERSION_MM))
 }
 
 /* ------------------------------------------------------------------ */

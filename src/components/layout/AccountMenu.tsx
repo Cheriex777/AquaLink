@@ -30,6 +30,7 @@ export default function AccountMenu() {
     try {
       await signOutUser()
       setMenuOpen(false)
+      navigate('/login')
     } catch (error) {
       // Surface briefly in console-free UI: close menu; auth state unchanged.
       void describeAuthError(error)

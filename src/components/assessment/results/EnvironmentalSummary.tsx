@@ -22,7 +22,10 @@ type EnvironmentStates = {
       clayPct: number | null
       phH2o: number | null
       depthLabel: string
-      provider?: 'soilgrids-rest' | 'user-provided'
+      provider?: 'soilgrids-rest'
+    | 'soilgrids-wms'
+    | 'regional-fallback'
+    | 'user-provided'
     } | null
     error: string | null
   }

@@ -16,6 +16,12 @@ export interface RainfallData {
   periodEndYear: number
 }
 
+export type SoilDataProvider =
+  | 'soilgrids-rest'
+  | 'soilgrids-wms'
+  | 'regional-fallback'
+  | 'user-provided'
+
 export interface SoilData {
   sandPct: number | null
   siltPct: number | null
@@ -23,7 +29,12 @@ export interface SoilData {
   phH2o: number | null
   textureClass: string | null
   depthLabel: string
-  provider?: 'soilgrids-rest' | 'user-provided'
+  /** Where this estimate came from — drives honest labelling in UI/reports. */
+  provider?: SoilDataProvider
+  /** Exact UI-facing label, e.g. "Live SoilGrids data". */
+  sourceLabel?: string
+  /** Optional context, e.g. which regional entry matched. */
+  matchNote?: string | null
 }
 
 export interface AirQualityData {
