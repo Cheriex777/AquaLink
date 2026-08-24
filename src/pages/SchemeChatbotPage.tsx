@@ -38,15 +38,18 @@ export default function SchemeChatbotPage() {
     setResponse(null)
 
     try {
-      const result = await fetch('http://127.0.0.1:8000/chat', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          question: question,
-        }),
-      })
+      const result = await fetch(
+        'https://jalsetu-chatbot-api.onrender.com/chat',
+        {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            question: question,
+          }),
+        }
+      )
 
       if (!result.ok) {
         throw new Error('Failed to get scheme recommendations')
@@ -56,7 +59,7 @@ export default function SchemeChatbotPage() {
       setResponse(data)
     } catch (err) {
       setError(
-        'Could not connect to the chatbot. Make sure the FastAPI server is running.'
+        'Could not connect to the chatbot. Please try again in a few seconds.'
       )
     } finally {
       setLoading(false)
@@ -93,6 +96,12 @@ export default function SchemeChatbotPage() {
           <textarea
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault()
+                sendMessage()
+              }
+            }}
             placeholder="Example: I am a farmer in Maharashtra. Which government schemes can help me with groundwater recharge?"
             className="min-h-28 flex-1 rounded-xl border p-4 outline-none focus:ring-2 focus:ring-primary-500"
           />
@@ -128,7 +137,7 @@ export default function SchemeChatbotPage() {
           <div className="rounded-2xl border bg-white p-6 shadow-sm">
             <h2 className="mb-4 flex items-center gap-2 text-xl font-bold">
               <Bot className="size-6 text-primary-600" />
-              AI Analysis
+              Analysis
             </h2>
 
             <div className="grid gap-4 md:grid-cols-3">
